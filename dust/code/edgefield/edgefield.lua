@@ -1,4 +1,4 @@
--- EdgeField v4.1
+-- EdgeField v4.2
 -- Shortwave number station
 -- CT-37c codec + per-digit FX + distance meta-control
 -- Grid: digit pair display, param sliders, LFO control surface
@@ -43,6 +43,8 @@ local voice_sets         = {}
 local _grid              = nil
 local _grid_last_refresh = 0  -- throttle grid:refresh() calls
 
+local _op_id_wav_done    = false
+
 -- last FX applied (internal tracking)
 local last_fx            = 0
 
@@ -54,21 +56,21 @@ local process_digit
 local carrier_depth_col  = 8
 local static_depth_col   = 4
 
+-- LFO speed range (phase increment per 0.1s tick)
+local LFO_SPEED_MIN      = 0.005
+local LFO_SPEED_MAX      = 0.084
+
 -- grid LFO speed slider positions (cols 1-9, 0-based)
-local carrier_speed_col  = 4
-local static_speed_col   = 4
+local carrier_speed_col  = 0
+local static_speed_col   = 0
 
 -- LFO phases (driven by animation metro)
 local carrier_phase      = 0.0
 local static_phase       = 0.0
 
--- LFO speed range (phase increment per 0.1s tick)
-local LFO_SPEED_MIN      = 0.005
-local LFO_SPEED_MAX      = 0.084
-
 -- current LFO rates (set by speed slider)
-local carrier_lfo_rate   = 0.03
-local static_lfo_rate    = 0.07
+local carrier_lfo_rate   = LFO_SPEED_MIN
+local static_lfo_rate    = LFO_SPEED_MIN
 
 -- max modulation depths
 local CARRIER_FREQ_DEPTH = 400.0  -- Hz swing at full depth
@@ -351,6 +353,12 @@ function init()
   _grid = grid.connect()
   _grid.key = grid_key
 
+  local p = poll.set("op_id_done", function(val)
+    if val == 1 then _op_id_wav_done = true end
+  end)
+  p.time = 0.05
+  p:start()
+
   -- -------------------------------------------------------
   -- TIMERS
   -- -------------------------------------------------------
@@ -412,7 +420,7 @@ end
 
 function load_message_file()
 
-  local path = params:string("message_file")
+  local path = params:get("message_file")
 
   if path == nil or path == "" then return false end
 
@@ -604,11 +612,10 @@ local function parse_op_id_line(line)
 end
 
 function load_op_id_def()
-  local path = params:string("op_id_def")
+  local path = params:get("op_id_def")
   local f    = (path ~= "") and io.open(path, "r") or nil
 
   if not f then
-    -- built-in default: op_id x3 with 2s gaps
     local default = { {type="op_id"}, {type="wait",secs=2},
                       {type="op_id"}, {type="wait",secs=2},
                       {type="op_id"}, {type="wait",secs=2} }
@@ -645,7 +652,9 @@ local function play_op_id_sequence(seq)
     elseif item.type == "wav" then
       local path = _path.audio .. "edgefield/op_id/" .. item.name
       if util.file_exists(path) then
-        engine.play_voice(path, 0.0, 0.0, 0.0)
+        _op_id_wav_done = false
+        engine.play_op_id_wav(path)
+        while not _op_id_wav_done do clock.sleep(0.05) end
       else
         print("[EdgeField] op_id wav missing:", path)
       end
