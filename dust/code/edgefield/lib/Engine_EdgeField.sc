@@ -8,6 +8,7 @@ Engine_EdgeField : CroneEngine {
     var <ambientBus;
 
     var digit_done_flag;
+    var op_id_done_flag;
 
     // distance state (0.0 - 1.0)
     var distanceVal;
@@ -25,16 +26,23 @@ Engine_EdgeField : CroneEngine {
         voiceBus   = Bus.audio(context.server, 2);
         ambientBus = Bus.audio(context.server, 2);
 
-        digit_done_flag = 0;
-        distanceVal     = 0.3;
+        digit_done_flag  = 0;
+        op_id_done_flag  = 0;
+        distanceVal      = 0.3;
 
         // =====================================================
-        // POLL
+        // POLLS
         // =====================================================
 
         this.addPoll(\digit_done, {
             var val = digit_done_flag;
             digit_done_flag = 0;
+            val
+        });
+
+        this.addPoll(\op_id_done, {
+            var val = op_id_done_flag;
+            op_id_done_flag = 0;
             val
         });
 
@@ -249,6 +257,35 @@ Engine_EdgeField : CroneEngine {
                 // flag done + free buffer after playback
                 SystemClock.sched(buf.duration + 0.5, {
                     digit_done_flag = 1;
+                    buf.free;
+                    nil
+                });
+            });
+        });
+
+        // =====================================================
+        // PLAY OP ID WAV
+        // Plays a single file through the voice bus and signals
+        // op_id_done when complete so Lua can wait for it
+        // =====================================================
+
+        this.addCommand("play_op_id_wav", "s", { arg msg;
+
+            var path = msg[1].asString;
+
+            Buffer.read(context.server, path, action: { |buf|
+
+                {
+                    var sig = PlayBuf.ar(
+                        1, buf.bufnum,
+                        BufRateScale.kr(buf),
+                        doneAction: 2
+                    );
+                    Out.ar(voiceBus, Pan2.ar(sig, 0));
+                }.play(context.server);
+
+                SystemClock.sched(buf.duration + 0.1, {
+                    op_id_done_flag = 1;
                     buf.free;
                     nil
                 });
