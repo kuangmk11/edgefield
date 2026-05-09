@@ -1,0 +1,2 @@
+swedish_rhapsody.wav, 3, swedish_rhapsody.wav, 3, swedish_rhapsody.wav, 3, achtung1.wav, 1
+swedish_rhapsody.wav, 3, swedish_rhapsody.wav, 2, achtung1.wav, 2, ende1.wav
