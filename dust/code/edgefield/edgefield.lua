@@ -977,6 +977,16 @@ function redraw()
 
   if tx_state ~= "IDLE" then
     screen.level(3)
+
+    if tx_state == "TRANSMITTING" or tx_state == "OUTRO" then
+      local done  = math.min(current_step - 1, #transmission_queue)
+      local total = #transmission_queue
+      local count = done .. "/" .. total
+      local w     = screen.text_extents(count)
+      screen.move(116 - w, 7)
+      screen.text(count)
+    end
+
     screen.move(120, 7)
     screen.text(spinners[spin_idx])
   end
