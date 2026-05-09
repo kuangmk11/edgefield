@@ -1,0 +1,2 @@
+poacher.wav, 0.5, poacher.wav, 0.5, poacher.wav, 0.5, op_id, 1, op_id, 1, op_id, 1, bing.wav, 0.5, bong.wav, 0.5, bing.wav, 0.5, bong.wav, 0.5, bing.wav, 0.5, bong.wav, 0.5
+bing.wav, 0.5, bong.wav, 0.5, bing.wav, 0.5, bong.wav, 0.5, bing.wav, 0.5, bong.wav, 0.5, poacher.wav, 0.5, poacher.wav, 0.5, poacher.wav
