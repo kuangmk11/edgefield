@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# Deploy EdgeField to norns
+# Deploy EdgeField to norns from worktree (edgefield directories only)
 # Usage:
 #   ./deploy.sh        — sync everything (code + audio + data)
 #   ./deploy.sh code   — sync code only (fast, skips audio)
 
 NORNS="we@192.168.0.215"
-SRC="/mnt/g/Documents/GitHub/edgefield/.claude/worktrees/cool-jackson-54502c/dust/"
-DEST="$NORNS:/home/we/dust/"
+BASE="/mnt/g/Documents/GitHub/edgefield/.claude/worktrees/cool-jackson-54502c/dust"
+DEST_BASE="$NORNS:/home/we/dust"
 
 if [ "$1" = "code" ]; then
-  echo "Deploying code only..."
-  rsync -avz --progress \
-    --include="code/***" \
-    --include="data/***" \
-    --exclude="audio/**" \
-    --exclude="*" \
-    "$SRC" "$DEST"
+  echo "Deploying code + data..."
+  rsync -avz --progress "$BASE/code/edgefield/"  "$DEST_BASE/code/edgefield/"
+  rsync -avz --progress "$BASE/data/edgefield/"  "$DEST_BASE/data/edgefield/"
 else
   echo "Deploying everything..."
-  rsync -avz --progress "$SRC" "$DEST"
+  rsync -avz --progress "$BASE/code/edgefield/"  "$DEST_BASE/code/edgefield/"
+  rsync -avz --progress "$BASE/data/edgefield/"  "$DEST_BASE/data/edgefield/"
+  rsync -avz --progress "$BASE/audio/edgefield/" "$DEST_BASE/audio/edgefield/"
 fi
 
 echo "Done."
