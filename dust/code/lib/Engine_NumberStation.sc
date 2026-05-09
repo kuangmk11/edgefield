@@ -256,24 +256,6 @@ Engine_EdgeField : CroneEngine {
         });
 
         // =====================================================
-        // MORSE (unchanged)
-        // =====================================================
-
-        this.addCommand("play_morse", "ff", { arg msg;
-
-            var freq = msg[1];
-            var dur  = msg[2];
-
-            {
-                var env = EnvGen.ar(
-                    Env.perc(0.005, dur, 0.5),
-                    doneAction: 2
-                );
-                Out.ar(voiceBus, Pan2.ar(SinOsc.ar(freq) * env, 0));
-            }.play(context.server);
-        });
-
-        // =====================================================
         // PARAM COMMANDS
         // =====================================================
 
@@ -339,7 +321,7 @@ Engine_EdgeField : CroneEngine {
             SystemClock.sched(dur, {
                 masterSynth.set(\trailWet,      0.0);
                 masterSynth.set(\trailFeedback, 0.0);
-                masterSynth.set(\ambientVol,    0.0);
+                masterSynth.set(\ambientVol,    distanceVal * 0.55);
                 nil
             });
         });

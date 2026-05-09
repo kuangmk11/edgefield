@@ -1,4 +1,4 @@
--- EdgeField v4.0
+-- EdgeField v4.1
 -- Shortwave number station
 -- CT-37c codec + per-digit FX + distance meta-control
 -- Grid: digit pair display, param sliders, LFO control surface
@@ -229,6 +229,18 @@ end
 function init()
 
   util.make_dir(_path.data .. "edgefield/messages/")
+  util.make_dir(_path.data .. "edgefield/op_id/")
+
+  -- write default definition file if missing
+  local default_def = _path.data .. "edgefield/op_id/default.txt"
+  if not util.file_exists(default_def) then
+    local f = io.open(default_def, "w")
+    if f then
+      f:write("op_id, 2, op_id, 2, op_id, 2\n")
+      f:write("op_id, 2, op_id, 2, op_id\n")
+      f:close()
+    end
+  end
 
   scan_voice_sets()
 
@@ -239,6 +251,8 @@ function init()
   params:add_separator("STATION")
 
   params:add_text("op_id", "Operator ID", "302")
+
+  params:add_file("op_id_def", "ID Definition")
 
   local default_voice = 1
   for i,v in ipairs(voice_sets) do
@@ -315,6 +329,9 @@ function init()
     params:set("message_file", default_file)
   end
 
+  params:set("op_id_def", default_def)
+  params:set_action("op_id_def", function() load_op_id_def() end)
+
   -- wire param changes to engine
   params:set_action("bandwidth",    function(x) engine.master_bandwidth(x) end)
   params:set_action("carrier_freq", function(x) engine.carrier_freq(x) end)
@@ -324,6 +341,8 @@ function init()
 
   -- push all param values to engine on boot
   params:bang()
+
+  load_op_id_def()
 
   -- -------------------------------------------------------
   -- GRID
@@ -463,12 +482,6 @@ function prepare_transmission()
     encoded = encoded .. "9"
   end
 
-  local id = params:string("op_id")
-
-  for i = 1, 3 do
-    table.insert(transmission_queue, { type="id", val=id })
-  end
-
   for i = 1, #encoded, gsize do
     table.insert(transmission_queue, {
       type = "group",
@@ -558,6 +571,91 @@ process_digit = function(d)
 end
 
 -- =========================================================
+-- OP ID DEFINITION  —  data/edgefield/op_id/*.txt
+--
+-- Two lines: line 1 = preroll, line 2 = outroll
+-- Each line is comma-separated tokens:
+--   op_id        → play operator-ID digits (from params)
+--   filename.wav → play audio/edgefield/op_id/filename.wav
+--   number       → wait that many seconds
+--
+-- Example (Swedish Rhapsody style):
+--   swedish_rhapsody.wav, 3, swedish_rhapsody.wav, 3, achtung1.wav, 1
+--   swedish_rhapsody.wav, 3, swedish_rhapsody.wav
+-- =========================================================
+
+local op_id_preroll = {}
+local op_id_outroll = {}
+
+local function parse_op_id_line(line)
+  local seq = {}
+  for token in line:gmatch("[^,]+") do
+    token = token:match("^%s*(.-)%s*$")
+    if token == "op_id" then
+      table.insert(seq, { type = "op_id" })
+    elseif token:match("%.wav$") then
+      table.insert(seq, { type = "wav", name = token })
+    else
+      local n = tonumber(token)
+      if n then table.insert(seq, { type = "wait", secs = n }) end
+    end
+  end
+  return seq
+end
+
+function load_op_id_def()
+  local path = params:string("op_id_def")
+  local f    = (path ~= "") and io.open(path, "r") or nil
+
+  if not f then
+    -- built-in default: op_id x3 with 2s gaps
+    local default = { {type="op_id"}, {type="wait",secs=2},
+                      {type="op_id"}, {type="wait",secs=2},
+                      {type="op_id"}, {type="wait",secs=2} }
+    op_id_preroll = default
+    op_id_outroll = { {type="op_id"}, {type="wait",secs=2},
+                      {type="op_id"}, {type="wait",secs=2},
+                      {type="op_id"} }
+    return
+  end
+
+  local lines = {}
+  for line in f:lines() do table.insert(lines, line) end
+  f:close()
+
+  op_id_preroll = lines[1] and parse_op_id_line(lines[1]) or {}
+  op_id_outroll = lines[2] and parse_op_id_line(lines[2]) or {}
+end
+
+-- must be called from within a clock coroutine
+local function play_op_id_sequence(seq)
+  local voice_set = params:string("voice_set")
+  local id        = params:string("op_id")
+  for _, item in ipairs(seq) do
+    if item.type == "op_id" then
+      for i = 1, #id do
+        local d    = id:sub(i, i)
+        local path = _path.audio ..
+          "edgefield/voices/" .. voice_set .. "/" .. d .. ".wav"
+        if util.file_exists(path) then
+          engine.play_voice(path, 0.0, 0.0, 0.0)
+        end
+        clock.sleep(params:get("digit_delay"))
+      end
+    elseif item.type == "wav" then
+      local path = _path.audio .. "edgefield/op_id/" .. item.name
+      if util.file_exists(path) then
+        engine.play_voice(path, 0.0, 0.0, 0.0)
+      else
+        print("[EdgeField] op_id wav missing:", path)
+      end
+    elseif item.type == "wait" then
+      clock.sleep(item.secs)
+    end
+  end
+end
+
+-- =========================================================
 -- TRANSMISSION LOOP
 -- =========================================================
 
@@ -575,6 +673,8 @@ function start_broadcast()
   if tx_clock then clock.cancel(tx_clock) end
 
   tx_clock = clock.run(function()
+
+    play_op_id_sequence(op_id_preroll)
 
     while current_step <= #transmission_queue do
 
@@ -597,9 +697,7 @@ function start_broadcast()
           engine.play_voice(path, drift, fx_mode * 1.0, fx_param)
         end
 
-        if item.type ~= "id" then
-          process_digit(d)
-        end
+        process_digit(d)
 
         clock.sleep(params:get("digit_delay"))
       end
@@ -615,23 +713,9 @@ function start_broadcast()
     tx_state = "OUTRO"
     redraw()
 
-    local voice_set = params:string("voice_set")
-    local id        = params:string("op_id")
-
     clock.sleep(params:get("group_delay"))
 
-    for rep = 1, 3 do
-      for i = 1, #id do
-        local d    = id:sub(i,i)
-        local path = _path.audio ..
-          "edgefield/voices/" .. voice_set .. "/" .. d .. ".wav"
-        if util.file_exists(path) then
-          engine.play_voice(path, 0.0, 0.0, 0.0)
-        end
-        clock.sleep(params:get("digit_delay"))
-      end
-      clock.sleep(params:get("group_delay"))
-    end
+    play_op_id_sequence(op_id_outroll)
 
     -- clear trail echo on clean end
     engine.trail_clear(0.0)
