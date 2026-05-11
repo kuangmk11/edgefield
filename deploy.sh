@@ -5,6 +5,8 @@
 #   ./deploy.sh code   — sync code only (fast, skips audio)
 
 NORNS="we@192.168.0.215"
+NORNS2="we@192.168.0.49"
+
 BASE="/mnt/g/Documents/GitHub/edgefield/dust"
 DEST_BASE="$NORNS:/home/we/dust"
 
