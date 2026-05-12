@@ -57,8 +57,8 @@ local carrier_depth_col  = 8
 local static_depth_col   = 4
 
 -- grid LFO speed slider positions (cols 1-9, 0-based)
-local carrier_speed_col  = 4
-local static_speed_col   = 4
+local carrier_speed_col  = 0
+local static_speed_col   = 0
 
 -- LFO phases (driven by animation metro)
 local carrier_phase      = 0.0
@@ -69,8 +69,8 @@ local LFO_SPEED_MIN      = 0.005
 local LFO_SPEED_MAX      = 0.084
 
 -- current LFO rates (set by speed slider)
-local carrier_lfo_rate   = 0.03
-local static_lfo_rate    = 0.07
+local carrier_lfo_rate   = 0.005
+local static_lfo_rate    = 0.005
 
 -- max modulation depths
 local CARRIER_FREQ_DEPTH = 400.0  -- Hz swing at full depth
