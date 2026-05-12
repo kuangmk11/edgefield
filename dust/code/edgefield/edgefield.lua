@@ -34,6 +34,8 @@ local cursor_timer       = 0
 local spin_idx           = 1
 local spinners           = {"|", "/", "-", "\\"}
 
+local title_anim_tick    = 0
+
 local current_step       = 1
 
 local terminal_lines     = {""}
@@ -73,6 +75,20 @@ local static_lfo_rate    = 0.07
 -- max modulation depths
 local CARRIER_FREQ_DEPTH = 400.0  -- Hz swing at full depth
 local STATIC_DEPTH       = 0.50   -- fraction of static_level at full depth
+
+-- =========================================================
+-- TITLE GRAPHIC
+-- EDGEFIELD drawn as scaled bitmap using font5x3.
+-- During glitch phase each pixel independently flickers;
+-- all snap to full brightness together on resolve.
+-- =========================================================
+
+local TITLE_BASE   = "EDGEFIELD"
+local TITLE_PERIOD = 90   -- ticks at 25fps (~3.6 s per cycle)
+local TITLE_HOLD   = 20   -- clean hold (~0.8 s)
+
+local TPIX = 2   -- pixel block size (px)
+local TGAP = 2   -- gap between characters (px)
 
 -- =========================================================
 -- 5x3 FONT
@@ -119,6 +135,49 @@ local font5x3 = {
   ["8"] = {6,5,6,5,6},
   ["9"] = {6,5,7,1,6},
 }
+
+-- =========================================================
+-- TITLE GRAPHIC — draw_title_gfx() called from redraw()
+-- font5x3 must be defined above this function
+-- =========================================================
+
+local function draw_title_gfx()
+  local phase    = title_anim_tick % TITLE_PERIOD
+  local resolved = phase >= (TITLE_PERIOD - TITLE_HOLD)
+  local t_slow   = math.floor(title_anim_tick / 3)
+
+  for ci = 1, 9 do
+    local glyph = font5x3[TITLE_BASE:sub(ci, ci)] or font5x3[" "]
+    local cx    = (ci - 1) * (3 * TPIX + TGAP)
+
+    for row = 1, 5 do
+      local bits = glyph[row]
+      local ry   = 1 + (row - 1) * TPIX
+
+      for col, mask in ipairs({4, 2, 1}) do
+        if (bits & mask) > 0 then
+          local bright
+          if resolved then
+            bright = 15
+          else
+            local h = (ci * 31 + row * 13 + col * 7 + t_slow * 1009) % 32
+            bright  = h < 13 and 0 or (h < 21 and 5 or (h < 29 and 10 or 15))
+          end
+          if bright > 0 then
+            screen.level(bright)
+            screen.rect(cx + (col - 1) * TPIX, ry, TPIX, TPIX)
+            screen.fill()
+          end
+        end
+      end
+    end
+  end
+
+  -- voice set label sits right of the graphic
+  screen.level(3)
+  screen.move(73, 9)
+  screen.text("[" .. params:string("voice_set") .. "]")
+end
 
 -- =========================================================
 -- GRID CHARACTER RENDERING
@@ -359,8 +418,9 @@ function init()
 
   metro.init(function()
 
-    cursor_timer  = (cursor_timer + 1) % 10
-    spin_idx      = (spin_idx % 4) + 1
+    cursor_timer     = (cursor_timer + 1) % 10
+    spin_idx         = (spin_idx % 4) + 1
+    title_anim_tick  = (title_anim_tick + 1) % (TITLE_PERIOD * 100)
 
     -- advance LFO phases using current speed settings
     carrier_phase = (carrier_phase + carrier_lfo_rate) % 1.0
@@ -953,17 +1013,18 @@ function redraw()
   screen.clear()
 
   -- header
-  screen.level(3)
-  screen.move(0, 7)
-
   if tx_state == "IDLE" then
-    screen.text("EDGEFIELD [" .. params:string("voice_set") .. "]")
-  elseif tx_state == "ENCODING" then
-    screen.text("ENCODING")
-  elseif tx_state == "TRANSMITTING" then
-    screen.text("TX [" .. params:string("voice_set") .. "]")
-  elseif tx_state == "OUTRO" then
-    screen.text("SIGNING OFF")
+    draw_title_gfx()
+  else
+    screen.level(3)
+    screen.move(0, 7)
+    if tx_state == "ENCODING" then
+      screen.text("ENCODING")
+    elseif tx_state == "TRANSMITTING" then
+      screen.text("TX [" .. params:string("voice_set") .. "]")
+    elseif tx_state == "OUTRO" then
+      screen.text("SIGNING OFF")
+    end
   end
 
   if tx_state ~= "IDLE" then
